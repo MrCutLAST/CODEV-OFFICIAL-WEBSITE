@@ -1,70 +1,65 @@
-# Set up CODEV automatic updates
+# Set up CODEV automatic updates safely
 
-This page is for the CODEV repository owner. It covers the one-time GitHub setup and first release.
+This public repository contains release automation and public release assets only. **Never place the CODEV application source, source ZIP, build cache, environment file, or credentials in this repository.**
 
-## What is already configured
+## Architecture
 
-The repository contains a GitHub Actions workflow at `.github/workflows/release-codev.yml`. It builds Desktop installers for Windows/macOS/Linux, builds the CLI, creates update metadata, and publishes a GitHub Release when a matching version tag is pushed.
+- `MrCutLAST/Codev-OFFICIAL` stays public. It contains the updater/release workflow and publishes installers and CLI binaries as GitHub Release assets.
+- The complete CODEV application source must live in a separate **private** GitHub repository owned by the project owner.
+- GitHub Actions checks out the private source with a read-only token, builds it on hosted runners, and uploads only the resulting installers/binaries to public Releases.
+- No source archive is committed to this public repository. The importer script used by the previous design has been removed.
 
-The workflow uses GitHub's automatic `GITHUB_TOKEN`; no Personal Access Token, AI API key or OAuth secret is needed for publishing.
+## One-time private source setup
 
-## One-time source upload
+1. In GitHub, create a separate repository such as `MrCutLAST/Codev-SOURCE` and set its visibility to **Private**.
+2. Upload the complete CODEV Desktop/Worker/CLI source tree to that private repository's `main` branch. Do not put the source ZIP in `Codev-OFFICIAL`.
+3. Create a fine-grained Personal Access Token restricted to that private source repository, with **Contents: Read-only** permission. Do not grant administration, workflow, or write permissions.
+4. In the public `Codev-OFFICIAL` repository, open **Settings → Secrets and variables → Actions**:
+   - Under **Variables**, add `CODEV_SOURCE_REPOSITORY` with value `MrCutLAST/Codev-SOURCE` (use the actual private repository owner/name).
+   - Under **Secrets**, add `CODEV_SOURCE_TOKEN` with the fine-grained read-only token.
+5. Keep the private source repository private. Do not paste the token into files, workflow YAML, issue comments, or chat.
 
-The application source is supplied as one ZIP so you do not need to upload dozens of individual files.
+The token is used only by checkout steps. It is not embedded in the installer and is not used by the running application.
 
-1. Download the CODEV R11 Full Source ZIP: `Codev-Desktop-v16.20.6-R11-FULL-SOURCE.zip`.
-2. Open the repository page and choose **Add file → Upload files**.
-3. Create a folder named `source` and upload the ZIP at this exact path:
+## Build and publish
 
-   `source/Codev-Desktop-v16.20.6-R11-FULL-SOURCE.zip`
+The workflow is `.github/workflows/release-codev.yml`.
 
-4. Commit the upload to `main`.
-
-The release workflow extracts this archive during each build. It preserves the user-facing `readme.md`, `docs/`, `CONTRIBUTING.md` and current GitHub workflows. It deliberately skips the old `.github/workflows/release-desktop.yml` inside the ZIP so that only the new release workflow publishes tags.
-
-The importer validates archive paths and requires the Desktop, Worker and CLI source files. Do not upload `.env` files, chat backups, API keys or OAuth secrets.
-
-## GitHub Actions permission
-
-The release workflow already requests the least permission it needs:
-
-- All build jobs: `contents: read`.
-- The final publisher job only: `contents: write`.
-
-GitHub creates `GITHUB_TOKEN` automatically for each workflow job. No Personal Access Token or extra repository secret is needed. Job-level `permissions` override the repository default; however, an organization policy can restrict write access. If the publisher job reports a 403/permission error, open **Settings → Actions → General → Workflow permissions** and allow **Read and write permissions**, or ask the organization owner to permit release publishing.
-
-## Publish the first release
-
-The source archive has Desktop/Worker version `16.20.6` and CLI version `16.20.7`.
-
-After uploading the ZIP:
-
-1. Open **Actions → Build and publish CODEV releases**.
-2. Click **Run workflow** on the default branch. This validates/builds all platforms without publishing a Release.
-3. Wait for every build job to pass and inspect its artifacts.
-4. Push the Desktop version tag:
+1. Push the updated source to the private repository's `main` branch first.
+2. In the public repository, open **Actions → Build and publish CODEV releases → Run workflow**. The optional `source_ref` input defaults to `main`; you can enter a private source branch, tag, or commit for a manual validation build.
+3. The manual run builds and stores temporary workflow artifacts; it does not publish a public Release.
+4. After all build jobs pass, push a version tag to the **public** repository, for example:
 
    ```bash
    git tag v16.20.6
    git push origin v16.20.6
    ```
 
-5. The tagged run publishes the GitHub Release after all jobs pass.
+5. The tag run checks the private source version against the tag, builds Desktop for Windows/macOS/Linux and CLI for Windows/Linux, then publishes the binary assets to the public GitHub Release.
 
-The workflow checks that `package.json`, `VERSION.txt` and the tag match. It stops if required installer or update metadata is missing.
+For tag-triggered releases, the workflow checks out the private source repository's `main` branch. Update that branch to the intended release before creating the public tag. The tag must match `package.json` and `VERSION.txt`.
 
-## Release assets
+## GitHub Actions permissions
 
-- Windows: `CodevSetup.exe`, `latest.yml`, `CodevSetup.exe.blockmap`.
-- macOS: Codev DMG installers and update metadata.
-- Linux: Codev AppImage and update metadata.
-- CLI: `CodevCLI.exe`, `CodevCLI-Setup.exe`, `cli-update.json` and Linux CLI.
+The workflow uses the automatically provided `GITHUB_TOKEN` for publishing:
 
-The first Desktop installation must be built with `MrCutLAST/Codev-OFFICIAL` embedded as its GitHub update provider. Existing installations without a configured provider require one manual update.
+- Build jobs: `contents: read` on the public repository, plus the separate read-only `CODEV_SOURCE_TOKEN` for the private source repository.
+- Publisher job only: `contents: write` to create the public GitHub Release.
+
+If publishing fails with a permission error, check **Settings → Actions → General → Workflow permissions** and organization policy. No write token is needed for the private source repository.
+
+## Published assets
+
+- Windows Desktop: `CodevSetup.exe`, `latest.yml`, and blockmap files.
+- macOS Desktop: DMG installers and update metadata.
+- Linux Desktop: AppImage and update metadata.
+- CLI: `CodevCLI.exe`, `CodevCLI-Setup.exe`, `CodevCLI-linux-amd64`, and `cli-update.json`.
+
+Only built outputs are published. The complete source remains in the private source repository.
 
 ## CLI update Worker variable
 
-After deploying the Worker route `GET /api/cli/update`, add this non-secret Worker Variable:
+After deploying the Worker route `GET /api/cli/update`, add this non-secret Worker variable:
 
 ```text
 CODEV_CLI_UPDATE_MANIFEST_URL=https://github.com/MrCutLAST/Codev-OFFICIAL/releases/latest/download/cli-update.json
@@ -72,9 +67,8 @@ CODEV_CLI_UPDATE_MANIFEST_URL=https://github.com/MrCutLAST/Codev-OFFICIAL/releas
 
 CLI users can then run `/update`. The app checks the HTTPS URL and validates SHA-256 before replacing the executable.
 
-## What remains separate
+## Separate credentials
 
-- This workflow publishes releases; it does not deploy Cloudflare Worker code.
-- AI provider and OAuth credentials stay in Cloudflare Worker variables/secrets.
-- Do not put API keys or OAuth secrets in the GitHub repository.
-- Do not create the release tag until the manual build workflow passes.
+- AI provider and OAuth credentials remain in Cloudflare Worker variables/secrets.
+- The private-source checkout token stays in GitHub Actions Secrets and must be read-only.
+- Do not commit `.env`, API keys, OAuth secrets, chat backups, or private source to this public repository.
