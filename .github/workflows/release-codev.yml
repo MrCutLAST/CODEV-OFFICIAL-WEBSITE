@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
+      cli_version: ${{ steps.version.outputs.cli_version }}
     steps:
       - name: Checkout PRIVATE CODEV source
         uses: actions/checkout@v4
@@ -32,54 +33,40 @@ jobs:
           ref: ${{ inputs.source_ref || 'main' }}
           token: ${{ secrets.CODEV_SOURCE_TOKEN }}
           path: codev-source
-      - name: Validate source and version
+      - name: Validate source and versions
         id: version
         working-directory: codev-source
         shell: bash
         run: |
+          set -euo pipefail
           required=(
-            package.json
-            VERSION.txt
-            worker.js
+            package.json VERSION.txt worker.js
             desktop/electron/main.mjs
             desktop/electron/electron-builder.config.cjs
-            cli/go.mod
-            cli/cmd/codev/main.go
+            cli/go.mod cli/cmd/codev/main.go
           )
           for file in "${required[@]}"; do
             test -s "$file" || { echo "::error::Missing $file"; exit 1; }
           done
           VERSION="$(node -p "require('./package.json').version")"
           VERSION_FILE="$(tr -d '\r\n' < VERSION.txt)"
-          if [[ "$VERSION_FILE" != "$VERSION" ]]; then
-            echo "::error::VERSION.txt ($VERSION_FILE) must match package.json ($VERSION)."
-            exit 1
-          fi
+          [[ "$VERSION_FILE" == "$VERSION" ]] || {
+            echo "::error::VERSION.txt ($VERSION_FILE) must match package.json ($VERSION)."; exit 1;
+          }
+          CLI_VERSION="$(sed -nE 's/^const version = "([^"]+)".*/\1/p' cli/cmd/codev/main.go | head -1)"
+          test -n "$CLI_VERSION" || { echo "::error::Could not read CLI version"; exit 1; }
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "cli_version=$CLI_VERSION" >> "$GITHUB_OUTPUT"
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             TAG_VERSION="${GITHUB_REF_NAME#v}"
-            if [[ "$TAG_VERSION" != "$VERSION" ]]; then
-              echo "::error::Release tag v$TAG_VERSION does not match package.json version $VERSION."
-              exit 1
-            fi
+            [[ "$TAG_VERSION" == "$VERSION" ]] || {
+              echo "::error::Tag v$TAG_VERSION does not match Desktop version $VERSION."; exit 1;
+            }
           fi
 
-  build-desktop:
+  build-desktop-windows:
     needs: validate-source
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: windows
-            script: build:win
-          - os: macos-15
-            platform: macos
-            script: build:mac
-          - os: ubuntu-24.04
-            platform: linux
-            script: build:linux
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     env:
       GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
@@ -93,29 +80,40 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.23.x"
-          cache: false
       - name: Install dependencies
         working-directory: codev-source
-        run: npm install
-      - name: Run project validation
+        run: npm ci
+      - name: Build Windows x64 installer and portable app
         working-directory: codev-source
-        run: npm run test:all
-      - name: Build installer with GitHub update provider
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          npx electron-builder --win nsis portable --x64 --config desktop/electron/electron-builder.config.cjs --publish never
+          if (Test-Path release/CodevSetup.exe) { Move-Item release/CodevSetup.exe release/CodevSetup-x64.exe -Force }
+          $portable = Get-ChildItem release -Filter "*win-x64.exe" | Select-Object -First 1
+          if ($portable) { Move-Item $portable.FullName release/Codev.exe -Force }
+          if (!(Test-Path release/CodevSetup-x64.exe)) { throw "Windows x64 NSIS installer missing" }
+          if (!(Test-Path release/Codev.exe)) { throw "Windows x64 portable executable missing" }
+      - name: Build Windows ARM64 installer
         working-directory: codev-source
-        run: npm run ${{ matrix.script }} -- --publish never
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          npx electron-builder --win nsis --arm64 --config desktop/electron/electron-builder.config.cjs --publish never
+          if (Test-Path release/CodevSetup.exe) { Move-Item release/CodevSetup.exe release/CodevSetup-arm64.exe -Force }
+          if (!(Test-Path release/CodevSetup-arm64.exe)) { throw "Windows ARM64 NSIS installer missing" }
       - uses: actions/upload-artifact@v4
         with:
-          name: codev-desktop-${{ matrix.platform }}
+          name: codev-desktop-windows
           path: codev-source/release/*
           if-no-files-found: error
           retention-days: 7
 
-  build-cli-windows:
+  build-desktop-macos:
     needs: validate-source
-    runs-on: windows-latest
+    runs-on: macos-14
+    env:
+      GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
       - name: Checkout PRIVATE CODEV source
         uses: actions/checkout@v4
@@ -124,47 +122,72 @@ jobs:
           ref: ${{ inputs.source_ref || 'main' }}
           token: ${{ secrets.CODEV_SOURCE_TOKEN }}
           path: codev-source
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-node@v4
         with:
-          go-version: "1.23.x"
-          cache: false
-      - name: Build CLI and self-contained installer
+          node-version: 22
+      - name: Install dependencies
         working-directory: codev-source
-        shell: pwsh
+        run: npm ci
+      - name: Build macOS Intel and Apple Silicon packages
+        working-directory: codev-source
+        run: npx electron-builder --mac dmg zip --x64 --arm64 --config desktop/electron/electron-builder.config.cjs --publish never
+      - name: Verify macOS packages and updater feed
+        working-directory: codev-source
         run: |
-          $ErrorActionPreference = "Stop"
-          Push-Location cli
-          New-Item -ItemType Directory -Force bin | Out-Null
-          go build -trimpath -ldflags="-s -w" -o bin/CodevCLI.exe ./cmd/codev
-          Copy-Item -Force bin/CodevCLI.exe installer/CodevCLI.exe
-          go build -trimpath -ldflags="-s -w" -o bin/CodevCLI-Setup.exe ./installer
-          Pop-Location
-          Copy-Item -Force cli/bin/CodevCLI.exe CodevCLI.exe
-          Copy-Item -Force cli/bin/CodevCLI-Setup.exe CodevCLI-Setup.exe
-          $cliSource = Get-Content cli/cmd/codev/main.go -Raw
-          $match = [regex]::Match($cliSource, 'const version = "([^"]+)"')
-          if (!$match.Success) { throw "Could not read CLI version from cli/cmd/codev/main.go" }
-          $cliVersion = $match.Groups[1].Value
-          $hash = (Get-FileHash CodevCLI.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          $releaseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/CodevCLI.exe"
-          $manifest = @{
-            version = $cliVersion
-            url = $releaseUrl
-            sha256 = $hash
-            notes = "CODEV CLI $cliVersion"
-          } | ConvertTo-Json -Compress
-          Set-Content -Path cli-update.json -Value $manifest -Encoding utf8
+          test -s release/Codev-mac-x64.dmg
+          test -s release/Codev-mac-arm64.dmg
+          test -s release/latest-mac.yml
       - uses: actions/upload-artifact@v4
         with:
-          name: codev-cli-windows
-          path: |
-            codev-source/CodevCLI.exe
-            codev-source/CodevCLI-Setup.exe
-            codev-source/cli-update.json
+          name: codev-desktop-macos
+          path: codev-source/release/*
           if-no-files-found: error
           retention-days: 7
 
-  build-cli-linux:
+  build-desktop-linux:
+    needs: validate-source
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+            flag: x64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            flag: arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Checkout PRIVATE CODEV source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.CODEV_SOURCE_REPOSITORY }}
+          ref: ${{ inputs.source_ref || 'main' }}
+          token: ${{ secrets.CODEV_SOURCE_TOKEN }}
+          path: codev-source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm fakeroot
+      - name: Install dependencies
+        working-directory: codev-source
+        run: npm ci
+      - name: Build Linux AppImage, DEB, and RPM (${{ matrix.arch }})
+        working-directory: codev-source
+        run: npx electron-builder --linux AppImage deb rpm --${{ matrix.flag }} --config desktop/electron/electron-builder.config.cjs --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codev-desktop-linux-${{ matrix.arch }}
+          path: codev-source/release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  build-cli:
     needs: validate-source
     runs-on: ubuntu-24.04
     steps:
@@ -179,18 +202,44 @@ jobs:
         with:
           go-version: "1.23.x"
           cache: false
-      - name: Build Linux CLI
+      - name: Build CLI for Windows, macOS, and Linux
         working-directory: codev-source
         shell: bash
         run: |
-          mkdir -p cli/bin
-          cd cli
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/CodevCLI-linux-amd64 ./cmd/codev
-          cp bin/CodevCLI-linux-amd64 ../CodevCLI-linux-amd64
+          set -euo pipefail
+          VERSION="${{ needs.validate-source.outputs.cli_version }}"
+          mkdir -p dist
+          build_one() {
+            local goos="$1" goarch="$2" name="$3" ext="$4"
+            local output="dist/$name"
+            (cd cli && GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "../$output" ./cmd/codev)
+            if [[ "$ext" == "zip" ]]; then
+              (cd dist && zip -q "$name.zip" "$name")
+              rm "$output"
+            else
+              tar -C dist -czf "dist/$name.tar.gz" "$name"
+              rm "$output"
+            fi
+          }
+          build_one windows amd64 CodevCLI-windows-x64.exe zip
+          build_one windows arm64 CodevCLI-windows-arm64.exe zip
+          build_one darwin amd64 CodevCLI-macos-x64 tar
+          build_one darwin arm64 CodevCLI-macos-arm64 tar
+          build_one linux amd64 CodevCLI-linux-x64 tar
+          build_one linux arm64 CodevCLI-linux-arm64 tar
+          # The Windows installer embeds the freshly built x64 CLI binary.
+          cp dist/CodevCLI-windows-x64.exe cli/installer/CodevCLI.exe
+          (cd cli && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../dist/CodevCLI-Setup.exe ./installer)
+          HASH="$(sha256sum dist/CodevCLI-windows-x64.exe | cut -d' ' -f1)"
+          cat > dist/cli-update.json <<EOF
+          {"version":"$VERSION","url":"https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/CodevCLI-windows-x64.exe","sha256":"$HASH","notes":"Codev CLI $VERSION (Windows x64)"}
+          EOF
+          cp dist/CodevCLI-windows-x64.exe dist/CodevCLI.exe
+          cp dist/CodevCLI-Setup.exe dist/CodevCLI-Setup.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: codev-cli-linux
-          path: codev-source/CodevCLI-linux-amd64
+          name: codev-cli-all-platforms
+          path: codev-source/dist/*
           if-no-files-found: error
           retention-days: 7
 
@@ -198,9 +247,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - validate-source
-      - build-desktop
-      - build-cli-windows
-      - build-cli-linux
+      - build-desktop-windows
+      - build-desktop-macos
+      - build-desktop-linux
+      - build-cli
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -212,11 +262,21 @@ jobs:
       - name: Verify release payload
         shell: bash
         run: |
-          test -s release/CodevSetup.exe || { echo "::error::Windows installer missing"; exit 1; }
-          test -s release/latest.yml || { echo "::error::electron-updater latest.yml missing"; exit 1; }
-          test -s release/CodevCLI.exe || { echo "::error::CLI binary missing"; exit 1; }
-          test -s release/CodevCLI-Setup.exe || { echo "::error::CLI installer missing"; exit 1; }
-          test -s release/cli-update.json || { echo "::error::CLI update manifest missing"; exit 1; }
+          set -euo pipefail
+          required=(
+            CodevSetup-x64.exe CodevSetup-arm64.exe Codev.exe
+            Codev-mac-x64.dmg Codev-mac-arm64.dmg latest.yml latest-mac.yml
+            CodevCLI.exe CodevCLI-Setup.exe CodevCLI-windows-arm64.exe
+            CodevCLI-macos-x64.tar.gz CodevCLI-macos-arm64.tar.gz
+            CodevCLI-linux-x64.tar.gz CodevCLI-linux-arm64.tar.gz cli-update.json
+          )
+          for file in "${required[@]}"; do
+            test -s "release/$file" || { echo "::error::Missing release asset $file"; exit 1; }
+          done
+          compgen -G "release/Codev-linux-*.AppImage" >/dev/null || { echo "::error::Linux AppImage missing"; exit 1; }
+          compgen -G "release/*.deb" >/dev/null || { echo "::error::Linux DEB missing"; exit 1; }
+          compgen -G "release/*.rpm" >/dev/null || { echo "::error::Linux RPM missing"; exit 1; }
+          compgen -G "release/Codev-mac-*.zip" >/dev/null || { echo "::error::macOS ZIP update packages missing"; exit 1; }
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
