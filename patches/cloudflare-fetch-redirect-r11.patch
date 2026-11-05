@@ -1,0 +1,8 @@
+--- a/worker.js
++++ b/worker.js
+@@ -9698,1 +9698,1 @@
+-    const response = await fetch(url, { ...options, redirect: 'error', signal: options?.signal || AbortSignal.timeout(90000) });
++    const response = await fetch(url, { ...options, redirect: 'follow', signal: options?.signal || AbortSignal.timeout(90000) });
+@@ -9802,1 +9802,1 @@
+-    const init = { method: request.method, headers, redirect: "error", signal: request.signal };
++    const init = { method: request.method, headers, redirect: "follow", signal: request.signal };

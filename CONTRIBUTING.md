@@ -1,65 +1,45 @@
-# Contributing to Codev 🚀
+# Contributing to CODEV
 
-First off, thank you for considering contributing to Codev! It's people like you that make Codev a better AI workspace for everyone.
+Thank you for helping improve CODEV. This document is for developers and maintainers. End-user help is in the [docs/](docs/) directory.
 
-Please take a moment to review this document in order to make the contribution process easy and effective for everyone involved.
+## Report bugs
 
-## 👥 Code of Conduct
+Open an issue at https://github.com/MrCutLAST/Codev-OFFICIAL/issues with reproducible steps, expected behavior, actual behavior, app version and redacted logs. Never commit API keys, OAuth secrets, access tokens, chat backups or private project files.
 
-By participating in this project, you agree to maintain a respectful, welcoming, and professional environment for all contributors.
+## Local development
 
-## 🐛 How to Report a Bug
+1. Fork or clone the repository.
+2. Install Node.js 22 or newer. Go 1.23+ is needed only to rebuild the CLI binaries from source.
+3. Install JavaScript dependencies:
 
-If you find a bug in the source code or a mistake in the documentation, you can help us by [submitting an Issue](https://github.com). 
-
-Before submitting, please:
-1. **Check existing issues** to make sure the bug hasn't already been reported.
-2. Use a clear and descriptive title.
-3. Describe the exact steps needed to reproduce the problem.
-4. Include screenshots or terminal logs if applicable.
-
-## 💡 How to Suggest a Feature
-
-We are always open to new ideas! If you want to request a new feature:
-1. Check the existing issues to ensure it hasn't been suggested before.
-2. Open a new issue and clearly explain how the feature works and why it would be useful to users.
-
-## 🛠️ Local Development Setup
-
-To set up the project locally on your machine, follow these steps:
-
-1. **Fork the repository** to your own GitHub account.
-2. **Clone your fork** locally:
-   ```bash
-   git clone https://github.com
-   cd YOUR_REPO_NAME
-   ```
-3. **Install dependencies**:
    ```bash
    npm install
    ```
-4. **Run the local development server** (Wrangler/Cloudflare edge proxy):
+
+4. Run the checks relevant to your change:
+
    ```bash
-   npm run dev
+   npm run check
+   npm run test:all:desktop
    ```
 
-## 🔀 Pull Request Guidelines
+5. For CLI source changes:
 
-When you are ready to submit your changes, please follow these steps:
-
-1. **Create a new branch** off the `main` branch. Use a descriptive name:
    ```bash
-   git checkout -b feature/your-feature-name
-   # or
-   git checkout -b fix/bug-description
+   cd cli
+   go test ./...
    ```
-2. **Make your changes** and ensure the code formatting remains consistent.
-3. **Commit your changes** with clear and concise commit messages.
-4. **Push to your fork**:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-5. Open a **Pull Request (PR)** against the `main` branch of the original repository.
-6. Provide a clear description of the changes in the PR template.
 
-Thank you for your contribution! 🎉
+## Cloudflare Worker compatibility
+
+Cloudflare Workers support `redirect: "follow"` and `redirect: "manual"` for outbound fetches. Do not use `redirect: "error"` in Worker code. Add regression coverage when changing gateway/model discovery or provider fetch behavior.
+
+## Build
+
+- Desktop: run `BUILD-WINDOWS.bat` on Windows with Node.js 22+.
+- CLI: use `cli/build-windows.ps1` or the commands documented in `cli/README.md` on a machine with Go 1.23+.
+- Web: deploy `worker.js` using the deployment procedure for the project. Keep production secrets in the platform's secret store; never commit populated `.env` files.
+
+## Pull requests
+
+Create a branch from `main`, describe the user-facing change, include tests and screenshots where appropriate, and update user documentation when behavior changes. Do not publish binaries, chat data or secrets in source commits unless the release process explicitly requires a public artifact.
