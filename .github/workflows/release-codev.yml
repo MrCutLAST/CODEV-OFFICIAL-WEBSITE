@@ -25,6 +25,7 @@ jobs:
         run: |
           required=(
             package.json
+            VERSION.txt
             worker.js
             desktop/electron/main.mjs
             desktop/electron/electron-builder.config.cjs
@@ -47,6 +48,11 @@ jobs:
         shell: bash
         run: |
           VERSION="$(node -p "require('./package.json').version")"
+          VERSION_FILE="$(tr -d '\r\n' < VERSION.txt)"
+          if [[ "$VERSION_FILE" != "$VERSION" ]]; then
+            echo "::error::VERSION.txt ($VERSION_FILE) must match package.json ($VERSION)."
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             TAG_VERSION="${GITHUB_REF_NAME#v}"
