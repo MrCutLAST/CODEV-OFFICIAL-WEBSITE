@@ -40,6 +40,10 @@ gh secret set CODEV_SOURCE_KEY --repo $Repo --body $Key
 if ($LASTEXITCODE -ne 0) { throw "Could not save CODEV_SOURCE_KEY in GitHub Actions secrets." }
 $env:CODEV_SOURCE_KEY = $Key
 
+# Refuse an already-used version before uploading or replacing any release input.
+gh api "repos/$Repo/git/ref/tags/v$Version" *> $null
+if ($LASTEXITCODE -eq 0) { throw "Tag v$Version already exists. Increase the version before releasing." }
+
 $Temp = Join-Path $env:TEMP ("codev-release-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force $Temp | Out-Null
 $Archive = Join-Path $Temp "Codev-source.zip"
@@ -59,8 +63,6 @@ try {
   gh release upload codev-source-bundle $Encrypted --repo $Repo --clobber
   if ($LASTEXITCODE -ne 0) { throw "Could not upload encrypted source bundle." }
 
-  gh api "repos/$Repo/git/ref/tags/v$Version" *> $null
-  if ($LASTEXITCODE -eq 0) { throw "Tag v$Version already exists. Increase the version before releasing." }
   $MainSha = gh api "repos/$Repo/git/ref/heads/main" --jq ".object.sha"
   if ($LASTEXITCODE -ne 0 -or !$MainSha) { throw "Could not resolve Codev-OFFICIAL main branch." }
   gh api --method POST "repos/$Repo/git/refs" -f "ref=refs/tags/v$Version" -f "sha=$MainSha"
