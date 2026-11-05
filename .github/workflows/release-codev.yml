@@ -20,7 +20,13 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-      - name: Require the application source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Import source archive
+        run: python scripts/prepare-release-source.py
+      - name: Validate source and version
+        id: version
         shell: bash
         run: |
           required=(
@@ -32,21 +38,9 @@ jobs:
             cli/go.mod
             cli/cmd/codev/main.go
           )
-          missing=0
           for file in "${required[@]}"; do
-            if [[ ! -f "$file" ]]; then
-              echo "::error::Missing $file. The full CODEV R11 source must be committed at the repository root before releases can be built."
-              missing=1
-            fi
+            test -s "$file" || { echo "::error::Missing $file"; exit 1; }
           done
-          if [[ "$missing" -ne 0 ]]; then
-            echo "This repository currently contains documentation and patches only. Add the matching full source package, then rerun the release workflow."
-            exit 1
-          fi
-      - id: version
-        name: Validate tag and app version
-        shell: bash
-        run: |
           VERSION="$(node -p "require('./package.json').version")"
           VERSION_FILE="$(tr -d '\r\n' < VERSION.txt)"
           if [[ "$VERSION_FILE" != "$VERSION" ]]; then
@@ -82,6 +76,11 @@ jobs:
       GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Import source archive
+        run: python scripts/prepare-release-source.py
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -107,9 +106,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: 22
+          python-version: "3.12"
+      - name: Import source archive
+        run: python scripts/prepare-release-source.py
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
@@ -118,10 +119,12 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          New-Item -ItemType Directory -Force cli/bin | Out-Null
-          go build -trimpath -ldflags="-s -w" -o cli/bin/CodevCLI.exe ./cli/cmd/codev
-          Copy-Item -Force cli/bin/CodevCLI.exe cli/installer/CodevCLI.exe
-          go build -trimpath -ldflags="-s -w" -o cli/bin/CodevCLI-Setup.exe ./cli/installer
+          Push-Location cli
+          New-Item -ItemType Directory -Force bin | Out-Null
+          go build -trimpath -ldflags="-s -w" -o bin/CodevCLI.exe ./cmd/codev
+          Copy-Item -Force bin/CodevCLI.exe installer/CodevCLI.exe
+          go build -trimpath -ldflags="-s -w" -o bin/CodevCLI-Setup.exe ./installer
+          Pop-Location
           Copy-Item -Force cli/bin/CodevCLI.exe CodevCLI.exe
           Copy-Item -Force cli/bin/CodevCLI-Setup.exe CodevCLI-Setup.exe
           $cliSource = Get-Content cli/cmd/codev/main.go -Raw
@@ -152,6 +155,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Import source archive
+        run: python scripts/prepare-release-source.py
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
