@@ -263,6 +263,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.validate-source.outputs.cli_version }}"
+          RELEASE_TAG="${{ inputs.release_tag || github.ref_name }}"
           mkdir -p dist
           build_one() {
             local goos="$1" goarch="$2" name="$3" format="$4"
@@ -285,7 +286,7 @@ jobs:
           cp dist/CodevCLI-windows-x64.exe dist/CodevCLI.exe
           HASH="$(sha256sum dist/CodevCLI.exe | cut -d' ' -f1)"
           cat > dist/cli-update.json <<EOF
-          {"version":"$VERSION","url":"https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/CodevCLI.exe","sha256":"$HASH","notes":"Codev CLI $VERSION (Windows x64)"}
+          {"version":"$VERSION","url":"https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/CodevCLI.exe","sha256":"$HASH","notes":"Codev CLI $VERSION (Windows x64)"}
           EOF
       - uses: actions/upload-artifact@v4
         with:
@@ -333,7 +334,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
-          name: CODEV ${{ github.ref_name }}
+          name: CODEV ${{ inputs.release_tag || github.ref_name }}
           draft: false
           prerelease: false
           generate_release_notes: true
