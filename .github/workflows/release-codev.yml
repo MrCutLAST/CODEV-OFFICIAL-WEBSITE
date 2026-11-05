@@ -87,7 +87,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          npx electron-builder --win nsis portable --x64 --config desktop/electron/electron-builder.config.cjs --config.directories.output=out/win-x64 --publish never
+          npx electron-builder --win nsis portable --x64 --config desktop/electron/electron-builder.config.cjs -c.directories.output=out/win-x64 --publish never
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item out/win-x64/CodevSetup.exe release/CodevSetup.exe -Force
           $portable = Get-ChildItem out/win-x64 -Filter "*win-x64.exe" | Select-Object -First 1
@@ -100,7 +100,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          npx electron-builder --win nsis portable --arm64 --config desktop/electron/electron-builder.config.cjs --config.directories.output=out/win-arm64 --publish never
+          npx electron-builder --win nsis portable --arm64 --config desktop/electron/electron-builder.config.cjs -c.directories.output=out/win-arm64 --publish never
           Copy-Item out/win-arm64/CodevSetup.exe release/CodevSetup-arm64.exe -Force
           $portable = Get-ChildItem out/win-arm64 -Filter "*win-arm64.exe" | Select-Object -First 1
           if (!$portable) { throw "Windows ARM64 portable executable missing" }
@@ -195,7 +195,7 @@ jobs:
         run: npm ci
       - name: Build Linux AppImage, DEB, and RPM (${{ matrix.arch }})
         working-directory: codev-source
-        run: npx electron-builder --linux AppImage deb rpm --${{ matrix.flag }} --config desktop/electron/electron-builder.config.cjs --config.directories.output=out/${{ matrix.output }} --publish never
+        run: npx electron-builder --linux AppImage deb rpm --${{ matrix.flag }} --config desktop/electron/electron-builder.config.cjs -c.directories.output=out/${{ matrix.output }} --publish never
       - name: Stage architecture-specific Linux update feed
         working-directory: codev-source
         shell: bash
