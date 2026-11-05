@@ -4,6 +4,12 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub Release tag to update (use v1 for the stable channel)
+        required: true
+        default: v1
+        type: string
 
 permissions:
   contents: read
@@ -63,7 +69,7 @@ jobs:
             TAG_VERSION="${GITHUB_REF_NAME#v}"
             [[ "$TAG_VERSION" == "$VERSION" ]] || { echo "::error::Tag v$TAG_VERSION does not match Desktop version $VERSION."; exit 1; }
           fi
-          npm ci
+          npm install --no-audit --no-fund
           npm run test:all:desktop
 
   build-desktop-windows:
@@ -89,7 +95,7 @@ jobs:
           node-version: 22
       - name: Install dependencies
         working-directory: codev-source
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Build Windows x64 installer and portable executable
         working-directory: codev-source
         shell: pwsh
@@ -150,7 +156,7 @@ jobs:
           node-version: 22
       - name: Install dependencies
         working-directory: codev-source
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Build macOS Intel and Apple Silicon installers and update archives
         working-directory: codev-source
         run: npx electron-builder --mac dmg zip --x64 --arm64 --config desktop/electron/electron-builder.config.cjs --publish never
@@ -210,7 +216,7 @@ jobs:
           sudo apt-get install -y rpm fakeroot
       - name: Install dependencies
         working-directory: codev-source
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Build Linux AppImage, DEB, and RPM (${{ matrix.arch }})
         working-directory: codev-source
         run: npx electron-builder --linux AppImage deb rpm --${{ matrix.flag }} --config desktop/electron/electron-builder.config.cjs -c.directories.output=out/${{ matrix.output }} --publish never
@@ -289,7 +295,7 @@ jobs:
           retention-days: 7
 
   publish-release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     needs:
       - validate-source
       - build-desktop-windows
@@ -326,7 +332,7 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
           name: CODEV ${{ github.ref_name }}
           draft: false
           prerelease: false
