@@ -4,12 +4,6 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-    inputs:
-      source_ref:
-        description: Branch, tag, or commit in the PRIVATE source repository
-        required: false
-        default: main
-        type: string
 
 permissions:
   contents: read
@@ -25,13 +19,18 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       cli_version: ${{ steps.version.outputs.cli_version }}
     steps:
-      - name: Checkout PRIVATE CODEV source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.CODEV_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.source_ref || 'main' }}
-          token: ${{ secrets.CODEV_SOURCE_TOKEN }}
-          path: codev-source
+      - uses: actions/checkout@v4
+      - name: Restore encrypted source bundle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODEV_SOURCE_KEY: ${{ secrets.CODEV_SOURCE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p encrypted-source codev-source
+          gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
+          node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
+          tar -xf encrypted-source/Codev-source.zip -C codev-source
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -69,13 +68,18 @@ jobs:
     env:
       GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
-      - name: Checkout PRIVATE CODEV source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.CODEV_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.source_ref || 'main' }}
-          token: ${{ secrets.CODEV_SOURCE_TOKEN }}
-          path: codev-source
+      - uses: actions/checkout@v4
+      - name: Restore encrypted source bundle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODEV_SOURCE_KEY: ${{ secrets.CODEV_SOURCE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p encrypted-source codev-source
+          gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
+          node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
+          tar -xf encrypted-source/Codev-source.zip -C codev-source
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -125,13 +129,18 @@ jobs:
     env:
       GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
-      - name: Checkout PRIVATE CODEV source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.CODEV_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.source_ref || 'main' }}
-          token: ${{ secrets.CODEV_SOURCE_TOKEN }}
-          path: codev-source
+      - uses: actions/checkout@v4
+      - name: Restore encrypted source bundle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODEV_SOURCE_KEY: ${{ secrets.CODEV_SOURCE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p encrypted-source codev-source
+          gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
+          node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
+          tar -xf encrypted-source/Codev-source.zip -C codev-source
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -176,13 +185,18 @@ jobs:
     env:
       GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
-      - name: Checkout PRIVATE CODEV source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.CODEV_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.source_ref || 'main' }}
-          token: ${{ secrets.CODEV_SOURCE_TOKEN }}
-          path: codev-source
+      - uses: actions/checkout@v4
+      - name: Restore encrypted source bundle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODEV_SOURCE_KEY: ${{ secrets.CODEV_SOURCE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p encrypted-source codev-source
+          gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
+          node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
+          tar -xf encrypted-source/Codev-source.zip -C codev-source
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -217,13 +231,18 @@ jobs:
     needs: validate-source
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout PRIVATE CODEV source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.CODEV_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.source_ref || 'main' }}
-          token: ${{ secrets.CODEV_SOURCE_TOKEN }}
-          path: codev-source
+      - uses: actions/checkout@v4
+      - name: Restore encrypted source bundle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODEV_SOURCE_KEY: ${{ secrets.CODEV_SOURCE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p encrypted-source codev-source
+          gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
+          node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
+          tar -xf encrypted-source/Codev-source.zip -C codev-source
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
