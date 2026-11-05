@@ -15,7 +15,14 @@ The workflow checks for these files and stops clearly when they are absent:
 - `cli/go.mod`
 - `cli/cmd/codev/main.go`
 
-Upload the matching full source package (for example, `Codev-Desktop-v16.20.6-R11-FULL-SOURCE.zip`) to the repository root, preserving its internal paths, then merge/push it to `main`. Do not upload `.env`, secrets, chat backups or personal API keys.
+Upload the matching full source package (for example, `Codev-Desktop-v16.20.6-R11-FULL-SOURCE.zip`) into a temporary folder, then copy these application files/folders into the repository root:
+
+- `package.json`, `VERSION.txt`, `worker.js`, `BUILD-WINDOWS.bat`, `JSZIP-LICENSE.txt`
+- `desktop/`, `cli/`, `tests/`
+
+Preserve the current repository's user-facing `readme.md`, `docs/`, `CONTRIBUTING.md` and `.github/workflows/release-codev.yml`. **Do not copy** the source ZIP's `.github/workflows/release-desktop.yml`; it is the older release workflow and would run alongside the new publisher for the same tag. Keep only `release-codev.yml` enabled for tag publishing. Do not upload `.env`, secrets, chat backups or personal API keys.
+
+The root `package.json` version must match `VERSION.txt`; the workflow checks both against the tag.
 
 ## 1. GitHub Actions permissions
 
