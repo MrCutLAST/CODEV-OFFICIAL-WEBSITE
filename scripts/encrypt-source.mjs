@@ -1,0 +1,10 @@
+import { createCipheriv, randomBytes } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
+const [input, output] = process.argv.slice(2);
+if (!input || !output) throw new Error("Usage: node encrypt-source.mjs <input.zip> <output.enc>");
+const key = Buffer.from(process.env.CODEV_SOURCE_KEY || "", "base64");
+if (key.length !== 32) throw new Error("CODEV_SOURCE_KEY must be a base64-encoded 32-byte key.");
+const iv = randomBytes(12);
+const cipher = createCipheriv("aes-256-gcm", key, iv);
+const encrypted = Buffer.concat([cipher.update(readFileSync(input)), cipher.final()]);
+writeFileSync(output, Buffer.concat([Buffer.from("CODEVENC1"), iv, cipher.getAuthTag(), encrypted]));
