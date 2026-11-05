@@ -29,7 +29,7 @@ One-time setup in `Codev-OFFICIAL`:
 | Linux | x64 | AppImage, DEB, RPM |
 | Linux | ARM64 | AppImage, DEB, RPM |
 
-Windows NSIS, macOS ZIP, and Linux AppImage packages carry electron-updater metadata. DEB/RPM and portable downloads are manual-install packages. macOS signing/notarization requires Apple Developer credentials; without them, Gatekeeper may warn when users first open the app.
+Windows x64 NSIS, macOS ZIP, and Linux AppImage packages carry electron-updater metadata. The Windows ARM64 installer is currently a manual download because its feed is published separately as `latest-arm64.yml`. DEB/RPM and portable downloads are manual-install packages. macOS signing/notarization requires Apple Developer credentials; without them, Gatekeeper may warn when users first open the app.
 
 ### CLI
 
