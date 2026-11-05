@@ -43,3 +43,10 @@ Cloudflare Workers support `redirect: "follow"` and `redirect: "manual"` for out
 ## Pull requests
 
 Create a branch from `main`, describe the user-facing change, include tests and screenshots where appropriate, and update user documentation when behavior changes. Do not publish binaries, chat data or secrets in source commits unless the release process explicitly requires a public artifact.
+
+
+## Release automation
+
+The GitHub release workflow is [`.github/workflows/release-codev.yml`](.github/workflows/release-codev.yml). Before tagging, make sure the full application source tree (Worker, Electron Desktop and CLI) is present at the repository root. The workflow validates these files, runs the cross-platform tests, embeds `GITHUB_REPOSITORY` for electron-updater, builds platform installers, and publishes release assets using the job-scoped `GITHUB_TOKEN`.
+
+See [Automatic update setup](docs/AUTO-UPDATE-SETUP.md) for the repository permission, first-release, Desktop updater and CLI manifest steps. The release workflow cannot build from the current documentation-only repository; the full R11 application source still needs to be committed.
