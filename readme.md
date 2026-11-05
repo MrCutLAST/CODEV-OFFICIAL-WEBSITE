@@ -56,6 +56,7 @@ Open **Extensions** and press **Connect** beside a supported service. CODEV open
 - [CLI guide and commands](docs/CLI-GUIDE.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Privacy, usage and known limits](docs/PRIVACY-AND-LIMITS.md)
+- [AI capabilities and limitations](docs/AI-CAPABILITIES.md)
 
 ## Reporting a problem
 
