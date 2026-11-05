@@ -1,74 +1,77 @@
-# Set up CODEV automatic updates safely
+# CODEV releases and automatic updates
 
-This public repository contains release automation and public release assets only. **Never place the CODEV application source, source ZIP, build cache, environment file, or credentials in this repository.**
+The public repository `MrCutLAST/Codev-OFFICIAL` contains release automation, helper scripts, and published binaries only. **Never commit the CODEV application source or a plaintext source ZIP here.**
 
-## Architecture
+## Source privacy: no separate source repository
 
-- `MrCutLAST/Codev-OFFICIAL` stays public. It contains the updater/release workflow and publishes installers and CLI binaries as GitHub Release assets.
-- The complete CODEV application source must live in a separate **private** GitHub repository owned by the project owner.
-- GitHub Actions checks out the private source with a read-only token, builds it on hosted runners, and uploads only the resulting installers/binaries to public Releases.
-- No source archive is committed to this public repository. The importer script used by the previous design has been removed.
+You do not need a private source repository, a Mac, or a Linux machine. The source stays on your Windows PC. Before a release, the helper script:
 
-## One-time private source setup
+1. Creates a source ZIP while excluding Git history, dependency folders, build output, environment files, and common key/certificate files.
+2. Encrypts the ZIP with AES-256-GCM.
+3. Stores the encryption key locally using Windows DPAPI and as the `CODEV_SOURCE_KEY` GitHub Actions secret.
+4. Uploads only the encrypted `Codev-source.zip.enc` to a **draft** release named `codev-source-bundle`.
+5. Creates the version tag. GitHub Actions downloads the encrypted bundle, decrypts it only on ephemeral build runners, and builds each platform. Plaintext source is never uploaded as a workflow artifact or public release asset.
 
-1. In GitHub, create a separate repository such as `MrCutLAST/Codev-SOURCE` and set its visibility to **Private**.
-2. Upload the complete CODEV Desktop/Worker/CLI source tree to that private repository's `main` branch. Do not put the source ZIP in `Codev-OFFICIAL`.
-3. Create a fine-grained Personal Access Token restricted to that private source repository, with **Contents: Read-only** permission. Do not grant administration, workflow, or write permissions.
-4. In the public `Codev-OFFICIAL` repository, open **Settings → Secrets and variables → Actions**:
-   - Under **Variables**, add `CODEV_SOURCE_REPOSITORY` with value `MrCutLAST/Codev-SOURCE` (use the actual private repository owner/name).
-   - Under **Secrets**, add `CODEV_SOURCE_TOKEN` with the fine-grained read-only token.
-5. Keep the private source repository private. Do not paste the token into files, workflow YAML, issue comments, or chat.
+The draft source-bundle release is not publicly visible. Keep it as a draft.
 
-The token is used only by checkout steps. It is not embedded in the installer and is not used by the running application.
+## One-time setup
 
-## Build and publish
+Requirements on your Windows PC:
+- GitHub CLI (`gh`): `winget install --id GitHub.cli`
+- Node.js 22 or newer
+- Git access to `MrCutLAST/Codev-OFFICIAL`
 
-The workflow is `.github/workflows/release-codev.yml`.
+Clone this public repository, then sign in once:
 
-1. Push the updated source to the private repository's `main` branch first.
-2. In the public repository, open **Actions → Build and publish CODEV releases → Run workflow**. The optional `source_ref` input defaults to `main`; you can enter a private source branch, tag, or commit for a manual validation build.
-3. The manual run builds and stores temporary workflow artifacts; it does not publish a public Release.
-4. After all build jobs pass, push a version tag to the **public** repository, for example:
-
-   ```bash
-   git tag v16.20.6
-   git push origin v16.20.6
-   ```
-
-5. The tag run checks the private source version against the tag, builds Desktop for Windows/macOS/Linux and CLI for Windows/Linux, then publishes the binary assets to the public GitHub Release.
-
-For tag-triggered releases, the workflow checks out the private source repository's `main` branch. Update that branch to the intended release before creating the public tag. The tag must match `package.json` and `VERSION.txt`.
-
-## GitHub Actions permissions
-
-The workflow uses the automatically provided `GITHUB_TOKEN` for publishing:
-
-- Build jobs: `contents: read` on the public repository, plus the separate read-only `CODEV_SOURCE_TOKEN` for the private source repository.
-- Publisher job only: `contents: write` to create the public GitHub Release.
-
-If publishing fails with a permission error, check **Settings → Actions → General → Workflow permissions** and organization policy. No write token is needed for the private source repository.
-
-## Published assets
-
-- Windows Desktop: `CodevSetup.exe`, `latest.yml`, and blockmap files.
-- macOS Desktop: DMG installers and update metadata.
-- Linux Desktop: AppImage and update metadata.
-- CLI: `CodevCLI.exe`, `CodevCLI-Setup.exe`, `CodevCLI-linux-amd64`, and `cli-update.json`.
-
-Only built outputs are published. The complete source remains in the private source repository.
-
-## CLI update Worker variable
-
-After deploying the Worker route `GET /api/cli/update`, add this non-secret Worker variable:
-
-```text
-CODEV_CLI_UPDATE_MANIFEST_URL=https://github.com/MrCutLAST/Codev-OFFICIAL/releases/latest/download/cli-update.json
+```powershell
+gh auth login
 ```
 
-CLI users can then run `/update`. The app checks the HTTPS URL and validates SHA-256 before replacing the executable.
+The release script automatically creates the encryption key on first use, protects its local copy with DPAPI, and writes the matching GitHub Actions secret. Do not delete `%APPDATA%\Codev\release-source-key.dpapi`; losing it means the existing encrypted bundle cannot be decrypted.
 
-## Separate credentials
+## Release assets built by CI
 
-- AI provider and OAuth credentials remain in Cloudflare Worker variables/secrets.
-- The private-source checkout token stays in GitHub Actions Secrets and must be read-only.
-- Do not commit `.env`, API keys, OAuth secrets, chat backups, or private source to this public repository.
+### Desktop
+
+| OS | CPU | Assets |
+|---|---|---|
+| Windows | x64 | `CodevSetup.exe` installer, `Codev.exe` portable |
+| Windows | ARM64 | `CodevSetup-arm64.exe` installer, `Codev-arm64.exe` portable |
+| macOS | Intel x64 | `Codev-mac-x64.dmg`, `Codev-mac-x64.zip` |
+| macOS | Apple Silicon ARM64 | `Codev-mac-arm64.dmg`, `Codev-mac-arm64.zip` |
+| Linux | x64 | AppImage, DEB, RPM |
+| Linux | ARM64 | AppImage, DEB, RPM |
+
+Windows x64 NSIS, macOS ZIP, and Linux AppImage packages carry electron-updater metadata. The Windows ARM64 installer is currently a manual download because its feed is published separately as `latest-arm64.yml`. DEB/RPM and portable downloads are manual-install packages. macOS DMG/ZIP packages can be built without owning a Mac, but Gatekeeper may warn on first launch. Reliable macOS in-app updates and a clean first launch require Apple Developer ID signing and notarization; those credentials are not configured by this workflow.
+
+### CLI
+
+The workflow publishes Windows x64/ARM64 ZIPs, macOS x64/ARM64 tarballs, Linux x64/ARM64 tarballs, the Windows x64 installer, and a Windows x64 update manifest. The current CLI self-updater consumes one platform-specific manifest and is therefore enabled for Windows x64 only; other CLI builds are downloadable manually until platform-aware manifest selection is added to the CLI source.
+
+## Publish a release
+
+From the cloned `Codev-OFFICIAL` repository, run PowerShell:
+
+```powershell
+.\scripts\prepare-release.ps1 -SourcePath "C:\Path\To\Codev-Source" -Version "16.20.7"
+```
+
+Replace the path with the folder containing the current Codev source root (`package.json`, `VERSION.txt`, `worker.js`). The version must match both `package.json` and `VERSION.txt`.
+
+The script encrypts and uploads the source bundle, then creates tag `v16.20.7`. That tag starts the multi-platform workflow. The release is published only after all build jobs and asset checks pass. If a build fails, inspect **Actions** and rerun the failed workflow; the encrypted source bundle remains available in its draft release.
+
+Increase the version before every new release. Git tags are immutable; the script refuses to reuse an existing tag.
+
+## Updater endpoints
+
+- Desktop: electron-updater reads GitHub Release metadata generated by electron-builder (`latest.yml`, `latest-mac.yml`, and Linux metadata).
+- CLI: Worker route `GET /api/cli/update` reads the manifest URL configured by the non-secret Worker variable `CODEV_CLI_UPDATE_MANIFEST_URL`, normally `https://github.com/MrCutLAST/Codev-OFFICIAL/releases/latest/download/cli-update.json`.
+
+The CLI manifest currently points to Windows x64 only. SHA-256 is checked before the executable is replaced.
+
+## Permissions and secrets
+
+- `CODEV_SOURCE_KEY` is the only source-build secret. It is generated by the local release script and stored as a GitHub Actions secret.
+- Build jobs use `GITHUB_TOKEN` with `contents: read` to download the draft encrypted bundle.
+- Only the release publisher job receives `contents: write` through `GITHUB_TOKEN`.
+- The encryption key is never committed to the repository, source archive, or release assets.

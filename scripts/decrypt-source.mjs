@@ -1,0 +1,12 @@
+import { createDecipheriv } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
+const [input, output] = process.argv.slice(2);
+if (!input || !output) throw new Error("Usage: node decrypt-source.mjs <input.enc> <output.zip>");
+const key = Buffer.from(process.env.CODEV_SOURCE_KEY || "", "base64");
+if (key.length !== 32) throw new Error("CODEV_SOURCE_KEY secret is missing or invalid.");
+const payload = readFileSync(input);
+if (payload.length < 37 || payload.subarray(0, 9).toString("ascii") !== "CODEVENC1") throw new Error("Invalid encrypted source bundle header.");
+const decipher = createDecipheriv("aes-256-gcm", key, payload.subarray(9, 21));
+decipher.setAuthTag(payload.subarray(21, 37));
+const plain = Buffer.concat([decipher.update(payload.subarray(37)), decipher.final()]);
+writeFileSync(output, plain, { mode: 0o600 });
