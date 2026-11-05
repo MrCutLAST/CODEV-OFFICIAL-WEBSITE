@@ -42,7 +42,7 @@ The release script automatically creates the encryption key on first use, protec
 | Linux | x64 | AppImage, DEB, RPM |
 | Linux | ARM64 | AppImage, DEB, RPM |
 
-Windows x64 NSIS, macOS ZIP, and Linux AppImage packages carry electron-updater metadata. The Windows ARM64 installer is currently a manual download because its feed is published separately as `latest-arm64.yml`. DEB/RPM and portable downloads are manual-install packages. macOS signing/notarization requires Apple Developer credentials; without them, Gatekeeper may warn when users first open the app.
+Windows x64 NSIS, macOS ZIP, and Linux AppImage packages carry electron-updater metadata. The Windows ARM64 installer is currently a manual download because its feed is published separately as `latest-arm64.yml`. DEB/RPM and portable downloads are manual-install packages. macOS DMG/ZIP packages can be built without owning a Mac, but Gatekeeper may warn on first launch. Reliable macOS in-app updates and a clean first launch require Apple Developer ID signing and notarization; those credentials are not configured by this workflow.
 
 ### CLI
 
