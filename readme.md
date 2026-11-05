@@ -14,6 +14,7 @@
 - **Privacy First:** Your API keys, tokens, and chat history are saved strictly in your browser's local storage.
 - **Built-in Web Preview & Console:** Write HTML/CSS/JS and preview your static websites instantly inside the workspace, complete with real-time diagnostics.
 - **Voice & Media Enabled:** Easily attach images, record video, or use voice commands for a multimodal workflow.
+- **Free Models : 13+ FREE MODEL AI
 
 ---
 
