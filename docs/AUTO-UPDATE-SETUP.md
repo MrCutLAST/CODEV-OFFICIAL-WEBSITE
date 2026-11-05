@@ -26,9 +26,12 @@ The importer validates archive paths and requires the Desktop, Worker and CLI so
 
 ## GitHub Actions permission
 
-Open **Settings → Actions → General → Workflow permissions** and choose **Read and write permissions**, then save.
+The release workflow already requests the least permission it needs:
 
-The release job requests only `contents: write`. If a GitHub organization policy locks this setting, an organization owner may need to allow it.
+- All build jobs: `contents: read`.
+- The final publisher job only: `contents: write`.
+
+GitHub creates `GITHUB_TOKEN` automatically for each workflow job. No Personal Access Token or extra repository secret is needed. Job-level `permissions` override the repository default; however, an organization policy can restrict write access. If the publisher job reports a 403/permission error, open **Settings → Actions → General → Workflow permissions** and allow **Read and write permissions**, or ask the organization owner to permit release publishing.
 
 ## Publish the first release
 
