@@ -83,6 +83,7 @@ jobs:
         with:
           go-version: "1.23.x"
           cache: false
+          cache: false
       - name: Install dependencies
         run: npm install
       - name: Run project validation
@@ -107,6 +108,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
+          cache: false
       - name: Build CLI and self-contained installer
         shell: pwsh
         run: |
@@ -148,6 +150,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
+          cache: false
       - name: Build Linux CLI
         shell: bash
         run: |
