@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Branch, tag, or commit in the PRIVATE source repository
+        required: false
+        default: main
+        type: string
 
 permissions:
   contents: read
@@ -19,14 +25,16 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout PRIVATE CODEV source
+        uses: actions/checkout@v4
         with:
-          python-version: "3.12"
-      - name: Import source archive
-        run: python scripts/prepare-release-source.py
+          repository: ${{ vars.CODEV_SOURCE_REPOSITORY }}
+          ref: ${{ inputs.source_ref || 'main' }}
+          token: ${{ secrets.CODEV_SOURCE_TOKEN }}
+          path: codev-source
       - name: Validate source and version
         id: version
+        working-directory: codev-source
         shell: bash
         run: |
           required=(
@@ -75,12 +83,13 @@ jobs:
     env:
       GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout PRIVATE CODEV source
+        uses: actions/checkout@v4
         with:
-          python-version: "3.12"
-      - name: Import source archive
-        run: python scripts/prepare-release-source.py
+          repository: ${{ vars.CODEV_SOURCE_REPOSITORY }}
+          ref: main
+          token: ${{ secrets.CODEV_SOURCE_TOKEN }}
+          path: codev-source
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -89,15 +98,18 @@ jobs:
           go-version: "1.23.x"
           cache: false
       - name: Install dependencies
+        working-directory: codev-source
         run: npm install
       - name: Run project validation
+        working-directory: codev-source
         run: npm run test:all
       - name: Build installer with GitHub update provider
+        working-directory: codev-source
         run: npm run ${{ matrix.script }} -- --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: codev-desktop-${{ matrix.platform }}
-          path: release/*
+          path: codev-source/release/*
           if-no-files-found: error
           retention-days: 7
 
@@ -105,17 +117,19 @@ jobs:
     needs: validate-source
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout PRIVATE CODEV source
+        uses: actions/checkout@v4
         with:
-          python-version: "3.12"
-      - name: Import source archive
-        run: python scripts/prepare-release-source.py
+          repository: ${{ vars.CODEV_SOURCE_REPOSITORY }}
+          ref: main
+          token: ${{ secrets.CODEV_SOURCE_TOKEN }}
+          path: codev-source
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
           cache: false
       - name: Build CLI and self-contained installer
+        working-directory: codev-source
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -144,9 +158,9 @@ jobs:
         with:
           name: codev-cli-windows
           path: |
-            CodevCLI.exe
-            CodevCLI-Setup.exe
-            cli-update.json
+            codev-source/CodevCLI.exe
+            codev-source/CodevCLI-Setup.exe
+            codev-source/cli-update.json
           if-no-files-found: error
           retention-days: 7
 
@@ -154,17 +168,19 @@ jobs:
     needs: validate-source
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout PRIVATE CODEV source
+        uses: actions/checkout@v4
         with:
-          python-version: "3.12"
-      - name: Import source archive
-        run: python scripts/prepare-release-source.py
+          repository: ${{ vars.CODEV_SOURCE_REPOSITORY }}
+          ref: main
+          token: ${{ secrets.CODEV_SOURCE_TOKEN }}
+          path: codev-source
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
           cache: false
       - name: Build Linux CLI
+        working-directory: codev-source
         shell: bash
         run: |
           mkdir -p cli/bin
@@ -174,7 +190,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: codev-cli-linux
-          path: CodevCLI-linux-amd64
+          path: codev-source/CodevCLI-linux-amd64
           if-no-files-found: error
           retention-days: 7
 
