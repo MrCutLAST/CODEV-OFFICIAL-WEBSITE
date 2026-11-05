@@ -39,7 +39,7 @@ jobs:
             fi
           done
           if [[ "$missing" -ne 0 ]]; then
-            echo "This repository currently contains the public documentation only. Upload/merge the full application source from the R11 source package, then rerun the release workflow."
+            echo "This repository currently contains documentation and patches only. Add the matching full source package, then rerun the release workflow."
             exit 1
           fi
       - id: version
@@ -87,10 +87,9 @@ jobs:
         run: npm install
       - name: Run project validation
         run: npm run test:all
-      - name: Build installer with the GitHub update provider embedded
+      - name: Build installer with GitHub update provider
         run: npm run ${{ matrix.script }} -- --publish never
-      - name: Upload desktop release assets
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: codev-desktop-${{ matrix.platform }}
           path: release/*
@@ -102,6 +101,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
@@ -115,13 +117,17 @@ jobs:
           go build -trimpath -ldflags="-s -w" -o cli/bin/CodevCLI-Setup.exe ./cli/installer
           Copy-Item -Force cli/bin/CodevCLI.exe CodevCLI.exe
           Copy-Item -Force cli/bin/CodevCLI-Setup.exe CodevCLI-Setup.exe
-          $version = node -p "require('./package.json').version"
+          $cliSource = Get-Content cli/cmd/codev/main.go -Raw
+          $match = [regex]::Match($cliSource, 'const version = "([^"]+)"')
+          if (!$match.Success) { throw "Could not read CLI version from cli/cmd/codev/main.go" }
+          $cliVersion = $match.Groups[1].Value
           $hash = (Get-FileHash CodevCLI.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $releaseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/CodevCLI.exe"
           $manifest = @{
-            version = $version
-            url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$version/CodevCLI.exe"
+            version = $cliVersion
+            url = $releaseUrl
             sha256 = $hash
-            notes = "CODEV CLI $version"
+            notes = "CODEV CLI $cliVersion"
           } | ConvertTo-Json -Compress
           Set-Content -Path cli-update.json -Value $manifest -Encoding utf8
       - uses: actions/upload-artifact@v4
