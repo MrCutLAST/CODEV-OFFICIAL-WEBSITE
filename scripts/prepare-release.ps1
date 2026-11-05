@@ -49,7 +49,7 @@ New-Item -ItemType Directory -Force $Temp | Out-Null
 $Archive = Join-Path $Temp "Codev-source.zip"
 $Encrypted = Join-Path $Temp "Codev-source.zip.enc"
 try {
-  & tar.exe -a -c -f $Archive -C $Source --exclude=.git --exclude=node_modules --exclude=release --exclude=out --exclude=dist --exclude=.env --exclude=.env.* --exclude=*.pem --exclude=*.key --exclude=*.p12 --exclude=*.pfx --exclude=*.log --exclude=*.sqlite --exclude=*.db .
+  & tar.exe -a -c -f $Archive -C $Source --exclude=.git --exclude=*/.git --exclude=node_modules --exclude=*/node_modules --exclude=release --exclude=out --exclude=dist --exclude=.env --exclude=.env.* --exclude=*.pem --exclude=*.key --exclude=*.p12 --exclude=*.pfx --exclude=*.log --exclude=*.sqlite --exclude=*.db .
   if ($LASTEXITCODE -ne 0) { throw "Could not create source archive." }
   $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
   node (Join-Path $ScriptRoot "encrypt-source.mjs") $Archive $Encrypted
