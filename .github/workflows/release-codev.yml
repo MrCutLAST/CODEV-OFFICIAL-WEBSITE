@@ -1,0 +1,192 @@
+name: Build and publish CODEV releases
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codev-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-source:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the application source
+        shell: bash
+        run: |
+          required=(
+            package.json
+            worker.js
+            desktop/electron/main.mjs
+            desktop/electron/electron-builder.config.cjs
+            cli/go.mod
+            cli/cmd/codev/main.go
+          )
+          missing=0
+          for file in "${required[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "::error::Missing $file. The full CODEV R11 source must be committed at the repository root before releases can be built."
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            echo "This repository currently contains the public documentation only. Upload/merge the full application source from the R11 source package, then rerun the release workflow."
+            exit 1
+          fi
+      - id: version
+        name: Validate tag and app version
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [[ "$TAG_VERSION" != "$VERSION" ]]; then
+              echo "::error::Release tag v$TAG_VERSION does not match package.json version $VERSION."
+              exit 1
+            fi
+          fi
+
+  build-desktop:
+    needs: validate-source
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            script: build:win
+          - os: macos-15
+            platform: macos
+            script: build:mac
+          - os: ubuntu-24.04
+            platform: linux
+            script: build:linux
+    runs-on: ${{ matrix.os }}
+    env:
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+      - name: Install dependencies
+        run: npm install
+      - name: Run project validation
+        run: npm run test:all
+      - name: Build installer with the GitHub update provider embedded
+        run: npm run ${{ matrix.script }} -- --publish never
+      - name: Upload desktop release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: codev-desktop-${{ matrix.platform }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  build-cli-windows:
+    needs: validate-source
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+      - name: Build CLI and self-contained installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force cli/bin | Out-Null
+          go build -trimpath -ldflags="-s -w" -o cli/bin/CodevCLI.exe ./cli/cmd/codev
+          Copy-Item -Force cli/bin/CodevCLI.exe cli/installer/CodevCLI.exe
+          go build -trimpath -ldflags="-s -w" -o cli/bin/CodevCLI-Setup.exe ./cli/installer
+          Copy-Item -Force cli/bin/CodevCLI.exe CodevCLI.exe
+          Copy-Item -Force cli/bin/CodevCLI-Setup.exe CodevCLI-Setup.exe
+          $version = node -p "require('./package.json').version"
+          $hash = (Get-FileHash CodevCLI.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest = @{
+            version = $version
+            url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$version/CodevCLI.exe"
+            sha256 = $hash
+            notes = "CODEV CLI $version"
+          } | ConvertTo-Json -Compress
+          Set-Content -Path cli-update.json -Value $manifest -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codev-cli-windows
+          path: |
+            CodevCLI.exe
+            CodevCLI-Setup.exe
+            cli-update.json
+          if-no-files-found: error
+          retention-days: 7
+
+  build-cli-linux:
+    needs: validate-source
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+      - name: Build Linux CLI
+        shell: bash
+        run: |
+          mkdir -p cli/bin
+          cd cli
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/CodevCLI-linux-amd64 ./cmd/codev
+          cp bin/CodevCLI-linux-amd64 ../CodevCLI-linux-amd64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codev-cli-linux
+          path: CodevCLI-linux-amd64
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - validate-source
+      - build-desktop
+      - build-cli-windows
+      - build-cli-linux
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: Verify release payload
+        shell: bash
+        run: |
+          test -s release/CodevSetup.exe || { echo "::error::Windows installer missing"; exit 1; }
+          test -s release/latest.yml || { echo "::error::electron-updater latest.yml missing"; exit 1; }
+          test -s release/CodevCLI.exe || { echo "::error::CLI binary missing"; exit 1; }
+          test -s release/CodevCLI-Setup.exe || { echo "::error::CLI installer missing"; exit 1; }
+          test -s release/cli-update.json || { echo "::error::CLI update manifest missing"; exit 1; }
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: CODEV ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
