@@ -30,7 +30,11 @@ jobs:
           mkdir -p encrypted-source codev-source
           gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
           node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
-          tar -xf encrypted-source/Codev-source.zip -C codev-source
+          if command -v unzip >/dev/null 2>&1; then
+            unzip -q encrypted-source/Codev-source.zip -d codev-source
+          else
+            tar -xf encrypted-source/Codev-source.zip -C codev-source
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
