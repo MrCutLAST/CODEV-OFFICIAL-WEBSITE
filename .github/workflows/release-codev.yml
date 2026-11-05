@@ -240,7 +240,7 @@ jobs:
             local output="dist/$name"
             (cd cli && GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "../$output" ./cmd/codev)
             if [[ "$format" == "zip" ]]; then
-              (cd dist && zip -q "$name.zip" "$name")
+              (cd dist && zip -q "${name%.exe}.zip" "$name")
             else
               (cd dist && tar -czf "$name.tar.gz" "$name")
             fi
@@ -289,7 +289,7 @@ jobs:
             CodevSetup.exe CodevSetup-arm64.exe Codev.exe Codev-arm64.exe
             Codev-mac-x64.dmg Codev-mac-arm64.dmg Codev-mac-x64.zip Codev-mac-arm64.zip
             latest.yml latest-mac.yml latest-linux.yml latest-linux-arm64.yml
-            CodevCLI.exe CodevCLI-Setup.exe CodevCLI-windows-x64.exe.zip CodevCLI-windows-arm64.exe.zip
+            CodevCLI.exe CodevCLI-Setup.exe CodevCLI-windows-x64.zip CodevCLI-windows-arm64.zip
             CodevCLI-macos-x64.tar.gz CodevCLI-macos-arm64.tar.gz
             CodevCLI-linux-x64.tar.gz CodevCLI-linux-arm64.tar.gz cli-update.json
           )
