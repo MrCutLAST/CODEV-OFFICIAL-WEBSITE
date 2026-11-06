@@ -34,7 +34,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p encrypted-source codev-source
-          gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
+          # Draft releases may not have a resolvable tag ref; resolve by release ID.
+          RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[] | select(.tag_name == "codev-source-bundle") | .id' | head -n 1)"
+          if [[ -z "$RELEASE_ID" ]]; then
+            echo "::error::Encrypted source draft release codev-source-bundle is not visible to the workflow token."
+            exit 1
+          fi
+          ASSET_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?per_page=100" --jq '.[] | select(.name == "Codev-source.zip.enc") | .id' | head -n 1)"
+          if [[ -z "$ASSET_ID" ]]; then
+            echo "::error::Encrypted source asset Codev-source.zip.enc is missing from release ${RELEASE_ID}."
+            exit 1
+          fi
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/octet-stream" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
+            --output encrypted-source/Codev-source.zip.enc
+          test -s encrypted-source/Codev-source.zip.enc
           node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
           if command -v unzip >/dev/null 2>&1; then
             unzip -q encrypted-source/Codev-source.zip -d codev-source
@@ -87,7 +103,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p encrypted-source codev-source
-          gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
+          # Draft releases may not have a resolvable tag ref; resolve by release ID.
+          RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[] | select(.tag_name == "codev-source-bundle") | .id' | head -n 1)"
+          if [[ -z "$RELEASE_ID" ]]; then
+            echo "::error::Encrypted source draft release codev-source-bundle is not visible to the workflow token."
+            exit 1
+          fi
+          ASSET_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?per_page=100" --jq '.[] | select(.name == "Codev-source.zip.enc") | .id' | head -n 1)"
+          if [[ -z "$ASSET_ID" ]]; then
+            echo "::error::Encrypted source asset Codev-source.zip.enc is missing from release ${RELEASE_ID}."
+            exit 1
+          fi
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/octet-stream" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
+            --output encrypted-source/Codev-source.zip.enc
+          test -s encrypted-source/Codev-source.zip.enc
           node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
           tar -xf encrypted-source/Codev-source.zip -C codev-source
       - uses: actions/setup-node@v4
@@ -148,7 +180,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p encrypted-source codev-source
-          gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
+          # Draft releases may not have a resolvable tag ref; resolve by release ID.
+          RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[] | select(.tag_name == "codev-source-bundle") | .id' | head -n 1)"
+          if [[ -z "$RELEASE_ID" ]]; then
+            echo "::error::Encrypted source draft release codev-source-bundle is not visible to the workflow token."
+            exit 1
+          fi
+          ASSET_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?per_page=100" --jq '.[] | select(.name == "Codev-source.zip.enc") | .id' | head -n 1)"
+          if [[ -z "$ASSET_ID" ]]; then
+            echo "::error::Encrypted source asset Codev-source.zip.enc is missing from release ${RELEASE_ID}."
+            exit 1
+          fi
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/octet-stream" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
+            --output encrypted-source/Codev-source.zip.enc
+          test -s encrypted-source/Codev-source.zip.enc
           node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
           tar -xf encrypted-source/Codev-source.zip -C codev-source
       - uses: actions/setup-node@v4
@@ -204,7 +252,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p encrypted-source codev-source
-          gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
+          # Draft releases may not have a resolvable tag ref; resolve by release ID.
+          RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[] | select(.tag_name == "codev-source-bundle") | .id' | head -n 1)"
+          if [[ -z "$RELEASE_ID" ]]; then
+            echo "::error::Encrypted source draft release codev-source-bundle is not visible to the workflow token."
+            exit 1
+          fi
+          ASSET_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?per_page=100" --jq '.[] | select(.name == "Codev-source.zip.enc") | .id' | head -n 1)"
+          if [[ -z "$ASSET_ID" ]]; then
+            echo "::error::Encrypted source asset Codev-source.zip.enc is missing from release ${RELEASE_ID}."
+            exit 1
+          fi
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/octet-stream" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
+            --output encrypted-source/Codev-source.zip.enc
+          test -s encrypted-source/Codev-source.zip.enc
           node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
           tar -xf encrypted-source/Codev-source.zip -C codev-source
       - uses: actions/setup-node@v4
@@ -250,7 +314,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p encrypted-source codev-source
-          gh release download codev-source-bundle --repo "$GITHUB_REPOSITORY" --pattern Codev-source.zip.enc --dir encrypted-source
+          # Draft releases may not have a resolvable tag ref; resolve by release ID.
+          RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[] | select(.tag_name == "codev-source-bundle") | .id' | head -n 1)"
+          if [[ -z "$RELEASE_ID" ]]; then
+            echo "::error::Encrypted source draft release codev-source-bundle is not visible to the workflow token."
+            exit 1
+          fi
+          ASSET_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?per_page=100" --jq '.[] | select(.name == "Codev-source.zip.enc") | .id' | head -n 1)"
+          if [[ -z "$ASSET_ID" ]]; then
+            echo "::error::Encrypted source asset Codev-source.zip.enc is missing from release ${RELEASE_ID}."
+            exit 1
+          fi
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/octet-stream" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
+            --output encrypted-source/Codev-source.zip.enc
+          test -s encrypted-source/Codev-source.zip.enc
           node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
           tar -xf encrypted-source/Codev-source.zip -C codev-source
       - uses: actions/setup-go@v5
