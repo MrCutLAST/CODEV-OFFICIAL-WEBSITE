@@ -358,8 +358,6 @@ jobs:
           }
           build_one windows amd64 CodevCLI-windows-x64.exe zip
           build_one windows arm64 CodevCLI-windows-arm64.exe zip
-          build_one darwin amd64 CodevCLI-macos-x64 tar
-          build_one darwin arm64 CodevCLI-macos-arm64 tar
           build_one linux amd64 CodevCLI-linux-x64 tar
           build_one linux arm64 CodevCLI-linux-arm64 tar
           cp dist/CodevCLI-windows-x64.exe cli/installer/CodevCLI.exe
@@ -397,9 +395,8 @@ jobs:
           set -euo pipefail
           required=(
             CodevSetup.exe CodevSetup-arm64.exe Codev.exe Codev-arm64.exe
-            latest.yml latest-mac.yml latest-linux.yml latest-linux-arm64.yml
+            latest.yml latest-linux.yml latest-linux-arm64.yml
             CodevCLI.exe CodevCLI-Setup.exe CodevCLI-windows-x64.zip CodevCLI-windows-arm64.zip
-            CodevCLI-macos-x64.tar.gz CodevCLI-macos-arm64.tar.gz
             CodevCLI-linux-x64.tar.gz CodevCLI-linux-arm64.tar.gz cli-update.json
           )
           for file in "${required[@]}"; do
