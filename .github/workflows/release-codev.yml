@@ -338,7 +338,7 @@ jobs:
             },
             linux: {
               ...(config.linux || {}),
-              maintainer: (config.linux || {}).maintainer || "Codev Team"
+              maintainer: (config.linux || {}).maintainer || "Codev Team <247970877+MrCutLAST@users.noreply.github.com>"
             }
           };
           NODE
