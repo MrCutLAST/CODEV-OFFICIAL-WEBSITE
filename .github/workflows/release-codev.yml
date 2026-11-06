@@ -138,7 +138,8 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $builderConfig = @'
-          const loaded = require("./desktop/electron/electron-builder.config.cjs");
+          const path = require("node:path");
+          const loaded = require(path.resolve(process.cwd(), "desktop/electron/electron-builder.config.cjs"));
           const config = typeof loaded === "function" ? loaded() : loaded;
           if (!config || typeof config !== "object") throw new Error("electron-builder config must export an object");
           module.exports = {
@@ -150,13 +151,13 @@ jobs:
           };
           '@
           [System.IO.File]::WriteAllText(
-            (Join-Path (Get-Location) ".codev-ci-builder.cjs"),
+            (Join-Path $env:RUNNER_TEMP "codev-ci-builder.cjs"),
             $builderConfig,
             (New-Object System.Text.UTF8Encoding($false))
           )
           New-Item -ItemType Directory -Force release | Out-Null
           $env:CODEV_BUILD_OUTPUT = "out/win-x64"
-          npx electron-builder --win nsis portable --x64 --config .codev-ci-builder.cjs --publish never
+          npx electron-builder --win nsis portable --x64 --config "$env:RUNNER_TEMP\codev-ci-builder.cjs" --publish never
           Remove-Item Env:CODEV_BUILD_OUTPUT
           Copy-Item out/win-x64/CodevSetup.exe release/CodevSetup.exe -Force
           $portable = Get-ChildItem out/win-x64 -Filter "*win-x64.exe" | Select-Object -First 1
@@ -170,7 +171,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $env:CODEV_BUILD_OUTPUT = "out/win-arm64"
-          npx electron-builder --win nsis portable --arm64 --config .codev-ci-builder.cjs --publish never
+          npx electron-builder --win nsis portable --arm64 --config "$env:RUNNER_TEMP\codev-ci-builder.cjs" --publish never
           Remove-Item Env:CODEV_BUILD_OUTPUT
           Copy-Item out/win-arm64/CodevSetup.exe release/CodevSetup-arm64.exe -Force
           $portable = Get-ChildItem out/win-arm64 -Filter "*win-arm64.exe" | Select-Object -First 1
@@ -324,8 +325,9 @@ jobs:
           p.homepage = p.homepage || "https://github.com/MrCutLAST/Codev-OFFICIAL";
           fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");
           NODE
-          cat > .codev-ci-builder.cjs <<'NODE'
-          const loaded = require("./desktop/electron/electron-builder.config.cjs");
+          cat > "$RUNNER_TEMP/codev-ci-builder.cjs" <<'NODE'
+          const path = require("node:path");
+          const loaded = require(path.resolve(process.cwd(), "desktop/electron/electron-builder.config.cjs"));
           const config = typeof loaded === "function" ? loaded() : loaded;
           if (!config || typeof config !== "object") throw new Error("electron-builder config must export an object");
           module.exports = {
@@ -340,7 +342,7 @@ jobs:
             }
           };
           NODE
-          CODEV_BUILD_OUTPUT="out/${{ matrix.output }}" npx electron-builder --linux AppImage deb rpm --${{ matrix.flag }} --config .codev-ci-builder.cjs --publish never
+          CODEV_BUILD_OUTPUT="out/${{ matrix.output }}" npx electron-builder --linux AppImage deb rpm --${{ matrix.flag }} --config "$RUNNER_TEMP/codev-ci-builder.cjs" --publish never
       - name: Stage architecture-specific Linux update feed
         working-directory: codev-source
         shell: bash
