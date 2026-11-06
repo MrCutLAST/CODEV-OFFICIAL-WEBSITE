@@ -121,7 +121,11 @@ jobs:
             --output encrypted-source/Codev-source.zip.enc
           test -s encrypted-source/Codev-source.zip.enc
           node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
-          tar -xf encrypted-source/Codev-source.zip -C codev-source
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            powershell.exe -NoProfile -NonInteractive -Command "Expand-Archive -LiteralPath 'encrypted-source/Codev-source.zip' -DestinationPath 'codev-source' -Force"
+          else
+            unzip -q encrypted-source/Codev-source.zip -d codev-source
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -198,7 +202,11 @@ jobs:
             --output encrypted-source/Codev-source.zip.enc
           test -s encrypted-source/Codev-source.zip.enc
           node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
-          tar -xf encrypted-source/Codev-source.zip -C codev-source
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            powershell.exe -NoProfile -NonInteractive -Command "Expand-Archive -LiteralPath 'encrypted-source/Codev-source.zip' -DestinationPath 'codev-source' -Force"
+          else
+            unzip -q encrypted-source/Codev-source.zip -d codev-source
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -270,7 +278,11 @@ jobs:
             --output encrypted-source/Codev-source.zip.enc
           test -s encrypted-source/Codev-source.zip.enc
           node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
-          tar -xf encrypted-source/Codev-source.zip -C codev-source
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            powershell.exe -NoProfile -NonInteractive -Command "Expand-Archive -LiteralPath 'encrypted-source/Codev-source.zip' -DestinationPath 'codev-source' -Force"
+          else
+            unzip -q encrypted-source/Codev-source.zip -d codev-source
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -332,7 +344,11 @@ jobs:
             --output encrypted-source/Codev-source.zip.enc
           test -s encrypted-source/Codev-source.zip.enc
           node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
-          tar -xf encrypted-source/Codev-source.zip -C codev-source
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            powershell.exe -NoProfile -NonInteractive -Command "Expand-Archive -LiteralPath 'encrypted-source/Codev-source.zip' -DestinationPath 'codev-source' -Force"
+          else
+            unzip -q encrypted-source/Codev-source.zip -d codev-source
+          fi
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
