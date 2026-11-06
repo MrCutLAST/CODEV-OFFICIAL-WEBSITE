@@ -193,7 +193,7 @@ jobs:
 
   build-desktop-macos:
     needs: validate-source
-    runs-on: macos-15
+    runs-on: macos-15-intel
     env:
       GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
@@ -237,7 +237,25 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build macOS Intel and Apple Silicon installers and update archives
         working-directory: codev-source
-        run: npx electron-builder --mac dmg zip --x64 --arm64 --config desktop/electron/electron-builder.config.cjs --publish never
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/codev-macos-builder.cjs" <<'NODE'
+          const path = require("node:path");
+          const loaded = require(path.resolve(process.cwd(), "desktop/electron/electron-builder.config.cjs"));
+          const config = typeof loaded === "function" ? loaded() : loaded;
+          if (!config || typeof config !== "object") {
+            throw new Error("electron-builder config must export an object");
+          }
+          module.exports = {
+            ...config,
+            mac: {
+              ...(config.mac || {}),
+              artifactName: "Codev-mac-${arch}.${ext}"
+            }
+          };
+          NODE
+          npx electron-builder --mac dmg zip --x64 --arm64 --config "$RUNNER_TEMP/codev-macos-builder.cjs" --publish never
       - name: Verify macOS outputs
         working-directory: codev-source
         run: |
