@@ -191,6 +191,86 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build-desktop-macos:
+    needs: validate-source
+    runs-on: macos-15-intel
+    env:
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore encrypted source bundle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODEV_SOURCE_KEY: ${{ secrets.CODEV_SOURCE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p encrypted-source codev-source
+          # Draft releases may not have a resolvable tag ref; resolve by release ID.
+          RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[] | select(.tag_name == "codev-source-bundle") | .id' | head -n 1)"
+          if [[ -z "$RELEASE_ID" ]]; then
+            echo "::error::Encrypted source draft release codev-source-bundle is not visible to the workflow token."
+            exit 1
+          fi
+          ASSET_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?per_page=100" --jq '.[] | select(.name == "Codev-source.zip.enc") | .id' | head -n 1)"
+          if [[ -z "$ASSET_ID" ]]; then
+            echo "::error::Encrypted source asset Codev-source.zip.enc is missing from release ${RELEASE_ID}."
+            exit 1
+          fi
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/octet-stream" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
+            --output encrypted-source/Codev-source.zip.enc
+          test -s encrypted-source/Codev-source.zip.enc
+          node scripts/decrypt-source.mjs encrypted-source/Codev-source.zip.enc encrypted-source/Codev-source.zip
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            powershell.exe -NoProfile -NonInteractive -Command "Expand-Archive -LiteralPath 'encrypted-source/Codev-source.zip' -DestinationPath 'codev-source' -Force"
+          else
+            unzip -q encrypted-source/Codev-source.zip -d codev-source
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        working-directory: codev-source
+        run: npm install --no-audit --no-fund
+      - name: Build macOS Intel and Apple Silicon installers and update archives
+        working-directory: codev-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/codev-macos-builder.cjs" <<'NODE'
+          const path = require("node:path");
+          const loaded = require(path.resolve(process.cwd(), "desktop/electron/electron-builder.config.cjs"));
+          const config = typeof loaded === "function" ? loaded() : loaded;
+          if (!config || typeof config !== "object") {
+            throw new Error("electron-builder config must export an object");
+          }
+          module.exports = {
+            ...config,
+            mac: {
+              ...(config.mac || {}),
+              artifactName: "Codev-mac-${arch}.${ext}"
+            }
+          };
+          NODE
+          npx electron-builder --mac dmg zip --x64 --arm64 --config "$RUNNER_TEMP/codev-macos-builder.cjs" --publish never
+      - name: Verify macOS outputs
+        working-directory: codev-source
+        run: |
+          test -s release/Codev-mac-x64.dmg
+          test -s release/Codev-mac-arm64.dmg
+          test -s release/Codev-mac-x64.zip
+          test -s release/Codev-mac-arm64.zip
+          test -s release/latest-mac.yml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codev-desktop-macos
+          path: codev-source/release/*
+          if-no-files-found: error
+          retention-days: 7
+
   build-desktop-linux:
     needs: validate-source
     strategy:
@@ -358,6 +438,8 @@ jobs:
           }
           build_one windows amd64 CodevCLI-windows-x64.exe zip
           build_one windows arm64 CodevCLI-windows-arm64.exe zip
+          build_one darwin amd64 CodevCLI-macos-x64 tar
+          build_one darwin arm64 CodevCLI-macos-arm64 tar
           build_one linux amd64 CodevCLI-linux-x64 tar
           build_one linux arm64 CodevCLI-linux-arm64 tar
           cp dist/CodevCLI-windows-x64.exe cli/installer/CodevCLI.exe
@@ -379,6 +461,7 @@ jobs:
     needs:
       - validate-source
       - build-desktop-windows
+      - build-desktop-macos
       - build-desktop-linux
       - build-cli
     runs-on: ubuntu-24.04
@@ -395,8 +478,10 @@ jobs:
           set -euo pipefail
           required=(
             CodevSetup.exe CodevSetup-arm64.exe Codev.exe Codev-arm64.exe
-            latest.yml latest-arm64.yml latest-linux.yml latest-linux-arm64.yml
+            Codev-mac-x64.dmg Codev-mac-arm64.dmg Codev-mac-x64.zip Codev-mac-arm64.zip
+            latest.yml latest-arm64.yml latest-mac.yml latest-linux.yml latest-linux-arm64.yml
             CodevCLI.exe CodevCLI-Setup.exe CodevCLI-windows-x64.zip CodevCLI-windows-arm64.zip
+            CodevCLI-macos-x64.tar.gz CodevCLI-macos-arm64.tar.gz
             CodevCLI-linux-x64.tar.gz CodevCLI-linux-arm64.tar.gz cli-update.json
           )
           for file in "${required[@]}"; do
@@ -407,6 +492,7 @@ jobs:
           compgen -G "release/*.rpm" >/dev/null || { echo "::error::Linux RPM missing"; exit 1; }
           test -s release/CodevSetup.exe.blockmap || { echo "::error::Windows x64 installer blockmap missing"; exit 1; }
           test -s release/CodevSetup-arm64.exe.blockmap || { echo "::error::Windows ARM64 installer blockmap missing"; exit 1; }
+          compgen -G "release/Codev-mac-*.blockmap" >/dev/null || { echo "::error::macOS blockmap assets missing"; exit 1; }
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
