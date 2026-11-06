@@ -137,8 +137,27 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          npx electron-builder --win nsis portable --x64 --config desktop/electron/electron-builder.config.cjs -c.directories.output=out/win-x64 --publish never
+          $builderConfig = @'
+          const loaded = require("./desktop/electron/electron-builder.config.cjs");
+          const config = typeof loaded === "function" ? loaded() : loaded;
+          if (!config || typeof config !== "object") throw new Error("electron-builder config must export an object");
+          module.exports = {
+            ...config,
+            directories: {
+              ...(config.directories || {}),
+              ...(process.env.CODEV_BUILD_OUTPUT ? { output: process.env.CODEV_BUILD_OUTPUT } : {})
+            }
+          };
+          '@
+          [System.IO.File]::WriteAllText(
+            (Join-Path (Get-Location) ".codev-ci-builder.cjs"),
+            $builderConfig,
+            (New-Object System.Text.UTF8Encoding($false))
+          )
           New-Item -ItemType Directory -Force release | Out-Null
+          $env:CODEV_BUILD_OUTPUT = "out/win-x64"
+          npx electron-builder --win nsis portable --x64 --config .codev-ci-builder.cjs --publish never
+          Remove-Item Env:CODEV_BUILD_OUTPUT
           Copy-Item out/win-x64/CodevSetup.exe release/CodevSetup.exe -Force
           $portable = Get-ChildItem out/win-x64 -Filter "*win-x64.exe" | Select-Object -First 1
           if (!$portable) { throw "Windows x64 portable executable missing" }
@@ -150,7 +169,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          npx electron-builder --win nsis portable --arm64 --config desktop/electron/electron-builder.config.cjs -c.directories.output=out/win-arm64 --publish never
+          $env:CODEV_BUILD_OUTPUT = "out/win-arm64"
+          npx electron-builder --win nsis portable --arm64 --config .codev-ci-builder.cjs --publish never
+          Remove-Item Env:CODEV_BUILD_OUTPUT
           Copy-Item out/win-arm64/CodevSetup.exe release/CodevSetup-arm64.exe -Force
           $portable = Get-ChildItem out/win-arm64 -Filter "*win-arm64.exe" | Select-Object -First 1
           if (!$portable) { throw "Windows ARM64 portable executable missing" }
@@ -171,7 +192,7 @@ jobs:
 
   build-desktop-macos:
     needs: validate-source
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       GITHUB_REPOSITORY: ${{ github.repository }}
     steps:
@@ -295,7 +316,31 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build Linux AppImage, DEB, and RPM (${{ matrix.arch }})
         working-directory: codev-source
-        run: npx electron-builder --linux AppImage deb rpm --${{ matrix.flag }} --config desktop/electron/electron-builder.config.cjs -c.directories.output=out/${{ matrix.output }} --publish never
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("node:fs");
+          const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          p.homepage = p.homepage || "https://github.com/MrCutLAST/Codev-OFFICIAL";
+          fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");
+          NODE
+          cat > .codev-ci-builder.cjs <<'NODE'
+          const loaded = require("./desktop/electron/electron-builder.config.cjs");
+          const config = typeof loaded === "function" ? loaded() : loaded;
+          if (!config || typeof config !== "object") throw new Error("electron-builder config must export an object");
+          module.exports = {
+            ...config,
+            directories: {
+              ...(config.directories || {}),
+              output: process.env.CODEV_BUILD_OUTPUT || (config.directories || {}).output
+            },
+            linux: {
+              ...(config.linux || {}),
+              maintainer: (config.linux || {}).maintainer || "Codev Team"
+            }
+          };
+          NODE
+          CODEV_BUILD_OUTPUT="out/${{ matrix.output }}" npx electron-builder --linux AppImage deb rpm --${{ matrix.flag }} --config .codev-ci-builder.cjs --publish never
       - name: Stage architecture-specific Linux update feed
         working-directory: codev-source
         shell: bash
